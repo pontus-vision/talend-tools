@@ -37,17 +37,31 @@ public class MemoryUtilAgentLoader {
             if (agentJarFilePath == null) {
 
                 String classpath = System.getProperty("java.class.path");
+                String osName = System.getProperty("os.name");
                 int indexOf = classpath.indexOf(defaultAgentJarFileName);
                 int indexEnd = indexOf;
                 int indexStart = -1;
-                FOR: for (int i = indexOf; i > 0; i--) {
-                    char charAt = classpath.charAt(i);
-                    switch (charAt) {
-                    case ':':
-                    case ';':
-                    case ' ':
-                        indexStart = i + 1;
-                        break FOR;
+
+                if (osName.startsWith("Windows")) {
+                    FOR: for (int i = indexOf; i > 0; i--) {
+                        char charAt = classpath.charAt(i);
+                        switch (charAt) {
+                        case ';':
+                        case ' ':
+                            indexStart = i + 1;
+                            break FOR;
+                        }
+                    }
+                } else {
+                    FOR: for (int i = indexOf; i > 0; i--) {
+                        char charAt = classpath.charAt(i);
+                        switch (charAt) {
+                        case ':':
+                        case ' ':
+                            indexStart = i + 1;
+                            break FOR;
+                        }
+
                     }
                 }
 
