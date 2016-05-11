@@ -1,0 +1,54 @@
+### IntelliJ idea
+ * Install [Eclipse Code Formatter](https://plugins.jetbrains.com/plugin/6546) plugin
+ * Import the java formatter file [IDEs/intellij/format.xml](src/main/resources/talend_java_eclipse_formatter.xml)
+ * Set the order import manually as followed `java;javax;org;com;`
+
+That's it, you're good to go !
+
+### Eclipse
+* Open Eclipse preferences
+* Select the Java->Code Style->Formatter section.
+* click on the *Import* button and select the file  (src/main/resources/talend_java_eclipse_formatter.xml)
+
+### Maven
+#### setup formatter validation
+To setup the automatic formatter validation for every maven build please add the following plugin definition to your pom.xml
+```
+<build>
+	<plugins>
+		<plugin>
+			<groupId>net.revelc.code</groupId>
+			<artifactId>formatter-maven-plugin</artifactId>
+			<version>1.6.0-TALEND</version>
+			<executions>
+	          <execution>
+	            <goals>
+	              <goal>validate</goal>
+	            </goals>
+	          </execution>
+	        </executions>
+            <configuration>
+                <configFile>talend_java_eclipse_formatter.xml</configFile>
+            </configuration>
+			<dependencies>
+	          <dependency>
+	            <groupId>org.talend.tools</groupId>
+	            <artifactId>java-formatter</artifactId>
+	            <version>0.1.0-SNAPSHOT</version>
+	          </dependency>
+	        </dependencies>                
+		</plugin>
+	</plugins>
+</build>
+```
+
+You may have to add this plugin repository to you pom too if it is not already done.
+```
+	<pluginRepositories>
+        <pluginRepository>
+            <id>talend-opensource-snapshot</id>
+            <name>talend-opensource-snapshot</name>
+            <url>http://newbuild.talend.com:8081/nexus/content/repositories/TalendOpenSourceSnapshot/</url>
+        </pluginRepository>
+    </pluginRepositories>
+```
