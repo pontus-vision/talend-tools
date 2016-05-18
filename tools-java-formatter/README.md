@@ -19,7 +19,7 @@ To setup the automatic formatter validation for every maven build please add the
 		<plugin>
 			<groupId>net.revelc.code</groupId>
 			<artifactId>formatter-maven-plugin</artifactId>
-			<version>1.6.0-TALEND</version>
+			<version>1.6.0-SNAPSHOT</version>
 			<executions>
 	          <execution>
 	            <goals>
@@ -34,7 +34,7 @@ To setup the automatic formatter validation for every maven build please add the
 	          <dependency>
 	            <groupId>org.talend.tools</groupId>
 	            <artifactId>java-formatter</artifactId>
-	            <version>0.1.0-SNAPSHOT</version>
+	            <version>0.1.0</version>
 	          </dependency>
 	        </dependencies>                
 		</plugin>
@@ -52,3 +52,4 @@ You may have to add this plugin repository to you pom too if it is not already d
         </pluginRepository>
     </pluginRepositories>
 ```
+If you want to format all your source code with the formatter config file you can change the goal from *validate* to *format*
