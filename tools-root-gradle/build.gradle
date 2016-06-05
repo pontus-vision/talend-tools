@@ -1,0 +1,43 @@
+apply plugin: "maven-publish"
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    compile gradleApi()
+    compile localGroovy() //not needed for Java plugins
+    // other dependencies that your plugin requires
+}
+
+
+publishing {
+    repositories {
+        maven {
+            url "http://newbuild.talend.com:8081/nexus/content/repositories/TalendOpenSourceSnapshot/"
+        }
+    }
+}
+
+pluginBundle {
+
+    vcsUrl = 'https://github.com/Talend/tools'
+
+    plugins {
+
+        talendddPlugin {
+            id = 'org.talend.tools.root-gradle'
+            displayName = 'Talend Root Plugin'
+            version = '0.1.0'
+        }
+    }
+
+    mavenCoordinates {
+        groupId = "org.talend.tools"
+        artifactId = "tools-root-gradle"
+        version = "0.1.0"
+    }
+
+
+}
+
