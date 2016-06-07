@@ -1,6 +1,6 @@
 ### IntelliJ idea
  * Install [Eclipse Code Formatter](https://plugins.jetbrains.com/plugin/6546) plugin
- * Import the java formatter file [IDEs/intellij/format.xml](src/main/resources/talend_java_eclipse_formatter.xml)
+ * Import the java formatter file [src/main/resources/talend_java_eclipse_formatter.xml](src/main/resources/talend_java_eclipse_formatter.xml)
  * Set the order import manually as followed `java;javax;org;com;`
 
 That's it, you're good to go !
