@@ -2,6 +2,7 @@
  * Install [Eclipse Code Formatter](https://plugins.jetbrains.com/plugin/6546) plugin
  * Import the java formatter file [src/main/resources/talend_java_eclipse_formatter.xml](src/main/resources/talend_java_eclipse_formatter.xml)
  * Set the order import manually as followed `java;javax;org;com;`
+ * Disable import on the fly (Preferences -> Editor -> General -> Auto Import, uncheck Optimize imports on the fly)
 
 That's it, you're good to go !
 
