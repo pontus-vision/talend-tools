@@ -1,0 +1,13 @@
+FROM java:8
+
+RUN apt-get update && apt-get install -yq wget nodejs ruby ruby-dev pkg-config build-essential git libxml2-dev libxslt-dev patch && gem install --no-ri --no-rdoc bundler 
+
+RUN wget -O swagger2markup-cli-1.0.0.jar 'https://bintray.com/swagger2markup/Maven/download_file?file_path=io%2Fgithub%2Fswagger2markup%2Fswagger2markup-cli%2F1.0.0%2Fswagger2markup-cli-1.0.0.jar'
+
+ENV SERVICES_DOC http://petstore.swagger.io/v2/swagger.json|https://tpsvc-master.datapwn.com/scim/v2/api-docs?group=org.talend.iam.scim
+
+ADD config.properties config.properties
+ADD build.sh build.sh
+ADD wait-for-it.sh wait-for-it.sh
+
+RUN chmod +x build.sh
