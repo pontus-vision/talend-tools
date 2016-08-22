@@ -1,43 +1,75 @@
-apply plugin: "maven-publish"
+apply plugin: 'groovy'
+apply plugin: 'maven-publish'
+apply plugin: 'java-gradle-plugin'
+
+wrapper {
+    gradleVersion = '3.0'
+}
 
 repositories {
     jcenter()
 }
 
-dependencies {
-    compile gradleApi()
-    compile localGroovy() //not needed for Java plugins
-    // other dependencies that your plugin requires
+group = "org.talend.buildtools"
+version = "0.1.0-SNAPSHOT"
+
+configurations.all {
+    resolutionStrategy {
+        force 'org.codehaus.groovy:groovy-all:2.4.7'
+    }
 }
 
+dependencies {
+    compile localGroovy()
+    compile gradleApi()
+
+    testCompile('org.spockframework:spock-core:1.0-groovy-2.4') {
+        exclude module: 'groovy-all'
+    }
+}
 
 publishing {
     repositories {
         maven {
-            url "http://newbuild.talend.com:8081/nexus/content/repositories/TalendOpenSourceSnapshot/"
+            url nexusOpenUrl
+            credentials {
+                username nexusOpenUsername
+                password nexusOpenPassword
+            }
+        }
+    }
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            groupId group
+            artifactId "talend-root"
+            version version
         }
     }
 }
 
-pluginBundle {
+// Skip the publishes that happen other than the one we explicitly request (there should be a better way)
+// http://stackoverflow.com/questions/21433251/gradle-plugin-maven-publish-how-to-publish-only-specific-publication-to-a-rep
+afterEvaluate {
+    tasks.withType(PublishToMavenRepository).all { publishTask ->
+        publishTask.onlyIf { task ->
+            task.name.startsWith("publishMaven")
+        }
+    }
+}
 
-    vcsUrl = 'https://github.com/Talend/tools'
+println "${group}.${name}"
+println "${group}.TalendRootPlugin"
 
+// For plugin testing (used by java-gradle-plugin)
+gradlePlugin {
     plugins {
-
-        talendddPlugin {
-            id = 'org.talend.tools.root-gradle'
-            displayName = 'Talend Root Plugin'
-            version = '0.1.0'
+        "talend-root" {
+            id = "${group}.${name}"
+            implementationClass = "${group}.TalendRootPlugin"
         }
     }
-
-    mavenCoordinates {
-        groupId = "org.talend.tools"
-        artifactId = "tools-root-gradle"
-        version = "0.1.0"
-    }
-
-
 }
+
+
 
