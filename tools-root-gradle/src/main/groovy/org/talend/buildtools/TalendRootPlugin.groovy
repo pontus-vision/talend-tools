@@ -12,8 +12,9 @@ class TalendRootPlugin implements Plugin<Project> {
         project.configure(project) {
             apply plugin: 'java'
 
+            println "talend-root configure"
+
             javadoc {
-                //source = sourceSets.main.allJava
                 classpath = configurations.compile
             }
 
@@ -25,6 +26,8 @@ class TalendRootPlugin implements Plugin<Project> {
             artifacts {
                 archives javadocJar
             }
+
+            javadocJar.dependsOn javadoc
         }
     }
 }

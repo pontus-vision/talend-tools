@@ -2,6 +2,3 @@ plugins {
     id 'org.talend.buildtools.talend-root'
 }
 
-project.task ("helloWorld") << {
-    println ":helloWorld"
-}

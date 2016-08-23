@@ -4,6 +4,7 @@ import org.junit.rules.TemporaryFolder
 import spock.lang.Specification
 
 import static org.gradle.testkit.runner.TaskOutcome.SUCCESS
+import static org.gradle.testkit.runner.TaskOutcome.UP_TO_DATE
 
 class BuildLogicFunctionalTest extends Specification {
     @Rule
@@ -29,11 +30,16 @@ class BuildLogicFunctionalTest extends Specification {
         def result = GradleRunner.create()
                 .withProjectDir(testProjectDir.root)
                 .withPluginClasspath()
-                .withArguments('helloWorld')
+                .withArguments('clean', 'build')
                 .build()
 
         then:
-        result.output.contains(':helloWorld')
-        result.task(":helloWorld").outcome == SUCCESS
+        println result.output
+
+        result.output.contains(':compileJava')
+        result.output.contains(':javadocJar')
+        result.task(":compileJava").outcome == UP_TO_DATE
+        result.task(":javadoc").outcome == UP_TO_DATE
+        result.task(":javadocJar").outcome == SUCCESS
     }
 }
