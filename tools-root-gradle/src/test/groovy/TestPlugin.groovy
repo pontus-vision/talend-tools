@@ -21,7 +21,7 @@ class BuildLogicFunctionalTest extends Specification {
         fos.close()
     }
 
-    def "hello world task prints hello world"() {
+    def "basic test"() {
         given:
         setupTestFile("test1.gradle")
 
@@ -33,7 +33,7 @@ class BuildLogicFunctionalTest extends Specification {
                 .build()
 
         then:
-        result.output.contains('TalendRootPlugin')
+        result.output.contains(':helloWorld')
         result.task(":helloWorld").outcome == SUCCESS
     }
 }
