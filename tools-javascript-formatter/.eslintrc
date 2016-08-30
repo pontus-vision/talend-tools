@@ -3,7 +3,7 @@
   "parser": "babel-eslint",
   "rules": {
     "brace-style": [2, "stroustrup"],
-    "indent": ["error", 4],
+    "indent": ["error", "tab"],
     "react/prefer-es6-class": 0
   },
   "env": {
