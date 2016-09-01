@@ -13,6 +13,9 @@ repositories {
 group = "org.talend.buildtools"
 version = "0.1.0-SNAPSHOT"
 
+
+// Hack to make sure we preload the Groovy compiler to not have a Groovy version
+// conflict when Spock is loaded.
 configurations.all {
     resolutionStrategy {
         force 'org.codehaus.groovy:groovy-all:2.4.7'

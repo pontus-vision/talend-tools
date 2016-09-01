@@ -6,28 +6,38 @@ import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.javadoc.Javadoc
 
 class TalendRootPlugin implements Plugin<Project> {
-    void apply(Project project) {
-        project.extensions.create("talend", TalendRootPluginExtension)
 
-        project.configure(project) {
-            apply plugin: 'java'
+    Project proj;
 
-            println "talend-root configure"
-
+    Closure setupJavadocJarTask() {
+        def cl = {
             javadoc {
                 classpath = configurations.compile
             }
-
             tasks.create(name: 'javadocJar', type: Jar) {
                 classifier = 'javadoc'
                 from javadoc.destinationDir
             }
-
             artifacts {
                 archives javadocJar
             }
-
             javadocJar.dependsOn javadoc
+        }
+        cl.delegate = proj
+        return cl
+    }
+
+    void apply(Project project) {
+        proj = project
+        proj.extensions.create("talend", TalendRootPluginExtension)
+
+        proj.configure(project) {
+            apply plugin: 'java'
+            //apply plugin: 'org.dm.bundle'
+
+            println "talend-root configure"
+            setupJavadocJarTask().call();
+
         }
     }
 }
