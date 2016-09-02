@@ -10,7 +10,7 @@ class TalendRootPlugin implements Plugin<Project> {
     Project proj;
 
     Closure setupJavadocJarTask() {
-        def cl = {
+        Closure cl = {
             javadoc {
                 classpath = configurations.compile
             }
