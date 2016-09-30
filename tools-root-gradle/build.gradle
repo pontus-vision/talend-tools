@@ -33,11 +33,33 @@ dependencies {
 
 publishing {
     repositories {
-        maven {
-            url nexusOpenUrl
-            credentials {
-                username nexusOpenUsername
-                password nexusOpenPassword
+        // publish to a different repo based on snapshot suffix
+        // but only if username/password for that repo is defined
+        // so that it won't publish from local workstations
+        // in which case it should publish to local maven
+        if (version.endsWith('-SNAPSHOT')) {
+            if (project.hasProperty('nexusOssSnapshotsUsername')) {
+                maven {
+                    url nexusOssSnapshotsUrl
+                    credentials {
+                        username nexusOssSnapshotsUsername
+                        password nexusOssSnapshotsPassword
+                    }
+                }
+            } else {
+                mavenLocal()
+            }
+        } else {
+            if(project.hasProperty('nexusOssReleasesUsername')) {
+                maven {
+                    url nexusOssReleasesUrl
+                    credentials {
+                        username nexusOssReleasesUsername
+                        password nexusOssReleasesPassword
+                    }
+                }
+            } else {
+                mavenLocal()
             }
         }
     }
@@ -45,7 +67,7 @@ publishing {
         mavenJava(MavenPublication) {
             from components.java
             groupId group
-            artifactId "talend-root"
+            artifactId "talend-gradle-root"
             version version
         }
     }
