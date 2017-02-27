@@ -53,7 +53,7 @@ You may have to add this plugin repository to you pom too if it is not already d
         <pluginRepository>
             <id>talend-opensource-snapshot</id>
             <name>talend-opensource-snapshot</name>
-            <url>http://newbuild.talend.com:8081/nexus/content/repositories/TalendOpenSourceSnapshot/</url>
+            <url>https://artifacts-oss.talend.com/nexus/content/repositories/TalendOpenSourceSnapshot/</url>
         </pluginRepository>
     </pluginRepositories>
 ```
