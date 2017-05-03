@@ -11,11 +11,10 @@ e.g. https://jira.talendforge.org/browse/TPSVC-XXX
 - [ ] Docs have been added / updated (for bug fixes / features)
 - [ ] Related design / discussions / pages (not in jira), if any, are all linked or available in the PR
 
-# You can add more checkboxes here
+<> You can add more checkboxes here
  
 **[ ] This PR introduces a breaking change**
  
-# **Original Template**
-
-# https://github.com/Talend/tools/blob/master/tools-root-github/.github/PULL_REQUEST_TEMPLATE.md 
+<> **Original Template**
+<> https://github.com/Talend/tools/blob/master/tools-root-github/.github/PULL_REQUEST_TEMPLATE.md 
 
