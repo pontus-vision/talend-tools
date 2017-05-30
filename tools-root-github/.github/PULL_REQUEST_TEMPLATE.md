@@ -12,8 +12,9 @@ e.g. https://jira.talendforge.org/browse/XXX
 - [ ] Related design / discussions / pages (not in JIRA), if any, are all linked or available in the Pull Request
 
 <!-- You can add more checkboxes here -->
- 
-**[ ] This Pull Request introduces a breaking change**
+
+<!-- Remove if not the case -->
+:warning:**This Pull Request introduces a breaking change**:warning:
  
 <!-- **Original Template** -->
 <!-- https://github.com/Talend/tools/blob/master/tools-root-github/.github/PULL_REQUEST_TEMPLATE.md -->
