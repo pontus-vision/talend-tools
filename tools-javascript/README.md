@@ -12,6 +12,9 @@ All those formatting rules are shared across Talend's frontend teams.
 * Rename webstorm-settings.jar.talend to webstorm-settings.jar
 * Import webstorm-settings.jar as webstorm settings
 * In settings > Code Style, select 'Talend' profile
+* Install [eslint plugin](https://plugins.jetbrains.com/plugin/7494-eslint) and configure it (File > settings).
+
+* For repository which has Prettier configuration, you should execute it on file saving. Follow those [configuration steps](https://github.com/prettier/prettier/blob/master/editors/webstorm/README.md).
 
 ### VSCode
 
