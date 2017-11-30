@@ -1,4 +1,0 @@
-plugins {
-    id 'org.talend.buildtools.talend-root'
-}
-
