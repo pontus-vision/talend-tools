@@ -113,7 +113,7 @@ public class HubDetectMojo extends AbstractMojo {
      * Should the exit code of hub-detect be validated. Can be true or any int. If true, 0 will be tested otherwise
      * the passed value. Any other value will be considered as no validation to execute.
      */
-    @Parameter(property = "hub-detect.validateExitCode")
+    @Parameter(property = "hub-detect.validateExitCode", defaultValue = "0")
     private String validateExitCode;
 
     /**
