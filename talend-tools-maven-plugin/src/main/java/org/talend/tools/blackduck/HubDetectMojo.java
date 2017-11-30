@@ -100,13 +100,13 @@ public class HubDetectMojo extends AbstractMojo {
     /**
      * The log level used for the inspection.
      */
-    @Parameter(property = "hub-detect.blackduckUrl", defaultValue = "ALL")
+    @Parameter(property = "hub-detect.logLevel", defaultValue = "ALL")
     private String logLevel;
 
     /**
      * The application name in blackduck.
      */
-    @Parameter(property = "hub-detect.blackduckName")
+    @Parameter(property = "hub-detect.blackduckName", defaultValue = "${project.name}")
     private String blackduckName;
 
     /**
