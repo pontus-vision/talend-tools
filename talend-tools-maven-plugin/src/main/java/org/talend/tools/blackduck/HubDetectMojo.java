@@ -16,6 +16,7 @@
 package org.talend.tools.blackduck;
 
 import static java.util.Optional.ofNullable;
+import static java.util.stream.Collectors.toList;
 import static org.apache.maven.plugins.annotations.LifecyclePhase.VERIFY;
 
 import java.io.File;
@@ -47,38 +48,85 @@ import org.eclipse.aether.resolution.ArtifactRequest;
 import org.eclipse.aether.resolution.ArtifactResolutionException;
 import org.eclipse.aether.resolution.ArtifactResult;
 
+/**
+ * Download if not already cached in maven repository and execute blackduck hub-detect.
+ */
 @Mojo(name = "hub-detect", defaultPhase = VERIFY, threadSafe = true)
 public class HubDetectMojo extends AbstractMojo {
 
+    /**
+     * Where the jar will be put for the execution.
+     */
     @Parameter(property = "hub-detect.hubDetectCache", defaultValue = "${project.build.directory}/blackduck/hub-detect.jar")
     private File hubDetectCache;
 
+    /**
+     * In which (artifactory) repository the jar can be found.
+     */
     @Parameter(property = "hub-detect.artifactoryBase", defaultValue = "https://test-repo.blackducksoftware.com/artifactory")
     private String artifactoryBase;
 
+    /**
+     * What is the query used to get the last version of hub-detect. Passed variables are the repository base, group, artifact and
+     * repo.
+     */
     @Parameter(property = "hub-detect.latestVersionUrl", defaultValue = "%s/api/search/latestVersion?g=%s&a=%s&repos=%s")
     private String latestVersionUrl;
 
+    /**
+     * The jar coordinates. You can use it to fix the version of hub-detect.
+     */
     @Parameter(property = "hub-detect.executableGav", defaultValue = "com.blackducksoftware.integration:hub-detect:latest")
     private String executableGav;
 
-    @Parameter(property = "hub-detect.executableGav", defaultValue = "bds-integrations-release")
+    /**
+     * The repository to use to download the executable jar.
+     */
+    @Parameter(property = "hub-detect.artifactRepositoryName", defaultValue = "bds-integrations-release")
     private String artifactRepositoryName;
 
+    /**
+     * Which server contains the blackduck credentials in your settings.xml.
+     */
     @Parameter(property = "hub-detect.serverId", defaultValue = "blackduck")
     private String serverId;
 
+    /**
+     * The blackduck url to use.
+     */
     @Parameter(property = "hub-detect.blackduckUrl")
     private String blackduckUrl;
 
+    /**
+     * The log level used for the inspection.
+     */
     @Parameter(property = "hub-detect.blackduckUrl", defaultValue = "ALL")
     private String logLevel;
 
+    /**
+     * The application name in blackduck.
+     */
     @Parameter(property = "hub-detect.blackduckName")
     private String blackduckName;
 
+    /**
+     * Should the exit code of hub-detect be validated. Can be true or any int. If true, 0 will be tested otherwise
+     * the passed value. Any other value will be considered as no validation to execute.
+     */
     @Parameter(property = "hub-detect.validateExitCode")
     private String validateExitCode;
+
+    /**
+     * Let you add system properties on hub-detect execution.
+     */
+    @Parameter
+    private Map<String, String> systemVariables;
+
+    /**
+     * Let you add environment variables on hub-detect execution.
+     */
+    @Parameter
+    private Map<String, String> environment;
 
     @Parameter(defaultValue = "${session}", readonly = true)
     private MavenSession session;
@@ -169,9 +217,19 @@ public class HubDetectMojo extends AbstractMojo {
         }
 
         final File java = new File(System.getProperty("java.home"), "bin/java");
-        final ProcessBuilder processBuilder = new ProcessBuilder().inheritIO().command(java.getAbsolutePath(), "-jar",
-                hubDetectCache.getAbsolutePath());
+        final List<String> command = new ArrayList<>();
+        command.add(java.getAbsolutePath());
+        if (systemVariables != null) {
+            command.addAll(systemVariables.entrySet().stream().map(e -> String.format("-D%s=%s", e.getKey(), e.getValue()))
+                    .collect(toList()));
+        }
+        command.add("-jar");
+        command.add(hubDetectCache.getAbsolutePath());
+        final ProcessBuilder processBuilder = new ProcessBuilder().inheritIO().command(command);
         final Map<String, String> environment = processBuilder.environment();
+        if (this.environment != null) {
+            environment.putAll(this.environment);
+        }
         environment.put("SPRING_APPLICATION_JSON",
                 "{\n\"blackduck.hub.url\": \"" + blackduckUrl + "\",\n" + "\"blackduck.hub.username\": \"" + server.getUsername()
                         + "\",\n" + "\"blackduck.hub.password\": \"" + server.getPassword() + "\",\n"
