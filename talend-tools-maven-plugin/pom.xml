@@ -26,6 +26,9 @@
   <packaging>maven-plugin</packaging>
   <name>Talend Tools Maven Plugin</name>
   <url>https://talend.github.io/tools/talend-tools-maven-plugin</url>
+  <description>
+    A set of utility MOJO including a hub-detect (from Blackduck) wrapper.
+  </description>
 
   <properties>
     <maven.version>3.5.0</maven.version>
@@ -49,6 +52,20 @@
       <version>${maven.version}</version>
     </dependency>
   </dependencies>
+
+  <developers>
+    <developer>
+      <name>Romain Manni-Bucau</name>
+      <id>rmannibucau</id>
+      <email>rmannibucau@talend.com</email>
+      <roles>
+        <role>Contributor</role>
+      </roles>
+      <organization>Talend</organization>
+      <organizationUrl>https://www.talend.com/</organizationUrl>
+      <timezone>+1</timezone>
+    </developer>
+  </developers>
 
   <build>
     <plugins>
