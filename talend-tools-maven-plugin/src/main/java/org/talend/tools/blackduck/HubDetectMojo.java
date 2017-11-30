@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
@@ -128,8 +129,23 @@ public class HubDetectMojo extends AbstractMojo {
     @Parameter
     private Map<String, String> environment;
 
+    /**
+     * Enables to skip the execution.
+     */
+    @Parameter(property = "hub-detect.skip", defaultValue = "false")
+    private boolean skip;
+
+    /**
+     * Enables to skip the execution.
+     */
+    @Parameter(property = "hub-detect.atTheEnd", defaultValue = "true")
+    private boolean atTheEnd;
+
     @Parameter(defaultValue = "${session}", readonly = true)
     private MavenSession session;
+
+    @Parameter(defaultValue = "${reactorProjects}", required = true, readonly = true)
+    private List<MavenProject> reactorProjects;
 
     @Component
     private SettingsDecrypter settingsDecrypter;
@@ -139,6 +155,23 @@ public class HubDetectMojo extends AbstractMojo {
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
+        final AtomicInteger counter = AtomicInteger.class.cast(
+                session.getRequest().getData().computeIfAbsent(getClass().getName() + ".counter", k -> new AtomicInteger()));
+        if (atTheEnd && !skip /* if skipped log the message */ && counter.incrementAndGet() != reactorProjects.size()) {
+            getLog().debug("Not yet at the last project, will only run when reached to not do it multiple times " + counter.get()
+                    + '/' + reactorProjects.size());
+            return;
+        }
+        if (skip) {
+            getLog().info("Execution is skipped");
+            return;
+        }
+
+        MavenProject rootProject = session.getCurrentProject();
+        while (rootProject.getParent() != null) {
+            rootProject = rootProject.getParent();
+        }
+
         if (session.getSettings().isOffline()) {
             getLog().info("Execution is offline, blackduck hub-detect plugin is skipped");
             return;
@@ -153,10 +186,6 @@ public class HubDetectMojo extends AbstractMojo {
             return;
         }
 
-        MavenProject rootProject = session.getCurrentProject();
-        while (rootProject.getParent() != null) {
-            rootProject = rootProject.getParent();
-        }
         final File root = rootProject.getBasedir();
 
         final Optional<Server> serverOpt = session.getSettings().getServers().stream().filter(s -> serverId.equals(s.getId()))
