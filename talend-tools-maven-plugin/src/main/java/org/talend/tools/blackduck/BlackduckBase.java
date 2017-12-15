@@ -77,9 +77,10 @@ public abstract class BlackduckBase extends AbstractMojo {
     public void execute() throws MojoExecutionException, MojoFailureException {
         final AtomicInteger counter = AtomicInteger.class.cast(
                 session.getRequest().getData().computeIfAbsent(getClass().getName() + ".counter", k -> new AtomicInteger()));
-        if (atTheEnd && !skip /* if skipped log the message */ && counter.incrementAndGet() != reactorProjects.size()) {
-            getLog().debug("Not yet at the last project, will only run when reached to not do it multiple times " + counter.get()
-                    + '/' + reactorProjects.size());
+        if (atTheEnd && !skip && counter.incrementAndGet() != reactorProjects.size()) {
+            getLog().debug(
+                    String.format("Not yet at the last project, will only run when reached to not do it multiple times %d/%d",
+                            counter.get(), reactorProjects.size()));
             return;
         }
         if (skip) {
@@ -105,13 +106,13 @@ public abstract class BlackduckBase extends AbstractMojo {
         final Optional<Server> serverOpt = session.getSettings().getServers().stream().filter(s -> serverId.equals(s.getId()))
                 .findFirst();
         if (!serverOpt.isPresent()) {
-            getLog().warn("No server '" + serverId + "', skipping blackduck execution");
+            getLog().warn(String.format("No server '%s', skipping blackduck execution", serverId));
             return;
         }
 
         Server server = serverOpt.get();
         if ("skip".equals(server.getPassword())) {
-            getLog().warn("server '" + serverId + "' was configured to be skipped");
+            getLog().warn(String.format("server '%s' was configured to be skipped", serverId));
             return;
         }
         server = ofNullable(settingsDecrypter.decrypt(new DefaultSettingsDecryptionRequest(server)).getServer()).orElse(server);

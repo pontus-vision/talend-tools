@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -41,6 +42,8 @@ import org.eclipse.aether.repository.RemoteRepository;
 import org.eclipse.aether.resolution.ArtifactRequest;
 import org.eclipse.aether.resolution.ArtifactResolutionException;
 import org.eclipse.aether.resolution.ArtifactResult;
+
+import com.google.gson.GsonBuilder;
 
 /**
  * Download if not already cached in maven repository and execute blackduck hub-detect.
@@ -150,11 +153,11 @@ public class HubDetectMojo extends BlackduckBase {
                 final ArtifactResult artifactResult = resolver.resolveArtifact(session.getRepositorySession(),
                         new ArtifactRequest(new DefaultArtifact(gav[0], gav[1], "jar", hubDetectVersion), repositories, null));
                 if (artifactResult.isMissing()) {
-                    throw new IllegalStateException("Didn't find '" + executableGav + "'");
+                    throw new IllegalStateException(String.format("Didn't find '%s'", executableGav));
                 }
                 jar = artifactResult.getArtifact().getFile();
             } catch (final ArtifactResolutionException e) {
-                throw new IllegalStateException("Didn't find '" + executableGav + "'", e);
+                throw new IllegalStateException(String.format("Didn't find '%s'", executableGav), e);
             }
             try {
                 FileUtils.copyFile(jar, hubDetectCache);
@@ -175,12 +178,14 @@ public class HubDetectMojo extends BlackduckBase {
         if (this.environment != null) {
             environment.putAll(this.environment);
         }
-        environment.put("SPRING_APPLICATION_JSON",
-                "{\n\"blackduck.hub.url\": \"" + blackduckUrl + "\",\n" + "\"blackduck.hub.username\": \"" + server.getUsername()
-                        + "\",\n" + "\"blackduck.hub.password\": \"" + server.getPassword() + "\",\n"
-                        + "\"logging.level.com.blackducksoftware.integration\": \"" + logLevel + "\",\n"
-                        + "\"detect.project.name\": \"" + blackduckName + "\",\n" + "\"detect.source.path\": \""
-                        + rootProject.getBasedir().getAbsolutePath() + "\"\n}");
+        final Map<String, String> config = new HashMap<>();
+        config.put("blackduck.hub.url", blackduckUrl);
+        config.put("blackduck.hub.username", server.getUsername());
+        config.put("blackduck.hub.password", server.getPassword());
+        config.put("logging.level.com.blackducksoftware.integration", logLevel);
+        config.put("detect.project.name", blackduckName);
+        config.put("detect.source.path", rootProject.getBasedir().getAbsolutePath());
+        environment.put("SPRING_APPLICATION_JSON", new GsonBuilder().create().toJson(config));
         command.add("-jar");
         command.add(hubDetectCache.getAbsolutePath());
         getLog().info("Launching: " + processBuilder.command());
@@ -197,7 +202,7 @@ public class HubDetectMojo extends BlackduckBase {
             throw new IllegalStateException(e);
         }
 
-        getLog().info("Output: " + exitStatus);
+        getLog().info(String.format("Output: %d", exitStatus));
 
         int expectedExitCode;
         try {
@@ -210,7 +215,7 @@ public class HubDetectMojo extends BlackduckBase {
             }
         }
         if (exitStatus != expectedExitCode) {
-            throw new IllegalStateException("Invalid exit status: " + exitStatus);
+            throw new IllegalStateException(String.format("Invalid exit status: %d", exitStatus));
         }
     }
 }
