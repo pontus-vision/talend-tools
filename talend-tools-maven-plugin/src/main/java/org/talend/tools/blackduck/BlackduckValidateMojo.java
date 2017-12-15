@@ -106,7 +106,7 @@ public class BlackduckValidateMojo extends BlackduckBase {
         {
             final int operationalHigh = report.getAggregateBomViewEntries().stream()
                     .mapToInt(it -> it.getRiskProfile().getCategories().getOPERATIONAL().getHIGH()).sum();
-            if (operationalHigh >= acceptedOperationalHigh) {
+            if (operationalHigh > acceptedOperationalHigh) {
                 final String message = String.format("Found #%d operational high violations, accepted: #%d", operationalHigh,
                         acceptedOperationalHigh);
                 getLog().error(message);
@@ -116,7 +116,7 @@ public class BlackduckValidateMojo extends BlackduckBase {
         {
             final int licenseHigh = report.getAggregateBomViewEntries().stream().mapToInt(it -> it.getLicenseRisk().getHIGH())
                     .sum();
-            if (licenseHigh >= acceptedLicenseRiskHigh) {
+            if (licenseHigh > acceptedLicenseRiskHigh) {
                 final String message = String.format("Found #%d license violations, accepted: #%d", licenseHigh,
                         acceptedLicenseRiskHigh);
                 getLog().error(message);
