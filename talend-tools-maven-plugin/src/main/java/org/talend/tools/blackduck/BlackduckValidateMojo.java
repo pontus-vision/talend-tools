@@ -49,11 +49,14 @@ public class BlackduckValidateMojo extends BlackduckBase {
     @Parameter(property = "hub-detect.alwaysTrustServerCertificate", defaultValue = "false")
     private boolean alwaysTrustServerCertificate;
 
-    @Parameter(property = "hub-detect.acceptedHigh", defaultValue = "0")
+    @Parameter(property = "hub-detect.acceptedOperationalHigh", defaultValue = "0")
     private int acceptedOperationalHigh;
 
-    @Parameter(property = "hub-detect.acceptedHigh", defaultValue = "0")
+    @Parameter(property = "hub-detect.acceptedLicenseRiskHigh", defaultValue = "0")
     private int acceptedLicenseRiskHigh;
+
+    @Parameter(property = "hub-detect.acceptedVulerabilityRiskHigh", defaultValue = "0")
+    private int acceptedVulerabilityRiskHigh;
 
     @Override
     public void doExecute(final MavenProject mvnProject, final Server credentials)
@@ -119,6 +122,16 @@ public class BlackduckValidateMojo extends BlackduckBase {
             if (licenseHigh > acceptedLicenseRiskHigh) {
                 final String message = String.format("Found #%d license violations, accepted: #%d", licenseHigh,
                         acceptedLicenseRiskHigh);
+                getLog().error(message);
+                throw new MojoFailureException(message);
+            }
+        }
+        {
+            final int vulnerabilityHigh = report.getAggregateBomViewEntries().stream().mapToInt(it -> it.getVulnerabilityRisk().getHIGH())
+                    .sum();
+            if (vulnerabilityHigh > acceptedVulerabilityRiskHigh) {
+                final String message = String.format("Found #%d vulnerability violations, accepted: #%d", vulnerabilityHigh,
+                        acceptedVulerabilityRiskHigh);
                 getLog().error(message);
                 throw new MojoFailureException(message);
             }
