@@ -300,10 +300,11 @@ public class HubDetectMojo extends BlackduckBase {
         if (systemVariables == null || !systemVariables.containsKey("detect.output.path")) {
             config.put("detect.output.path", new File(rootProject.getBuild().getDirectory(), "blackduck").getAbsolutePath());
         }
+        final String enforcedExcluded = "/blackduck/";
         if (exclusions != null) {
             config.put("detect.hub.signature.scanner.exclusion.patterns",
-                    Stream.concat(Stream.of("/blackduck/"), exclusions.stream().filter(Objects::nonNull).map(String::trim))
-                            .map(p -> (p.startsWith("/") ? "" : "/") + p + (p.endsWith("/") ? "" : ('/'))).collect(joining(",")));
+                    Stream.concat(Stream.of(enforcedExcluded), exclusions.stream().filter(Objects::nonNull).map(String::trim))
+                            .collect(joining(",")));
         } else {
             config.put("detect.hub.signature.scanner.exclusion.patterns", "/blackduck/");
         }
