@@ -108,6 +108,12 @@ public class HubDetectMojo extends BlackduckBase {
     private String scanCliDownloadUrl;
 
     /**
+     * Should scan cli be used offline.
+     */
+    @Parameter(property = "hub-detect.scanCliOffline", defaultValue = "false")
+    private boolean scanCliOffline;
+
+    /**
      * The jar coordinates. You can use it to fix the version of hub-detect.
      */
     @Parameter(property = "hub-detect.scanCliGav", defaultValue = "com.blackducksoftware.integration:scan-cli:latest")
@@ -214,7 +220,7 @@ public class HubDetectMojo extends BlackduckBase {
         }
 
         final File explodedScanCli;
-        {
+        if (scanCliOffline) {
             final String[] gav = scanCliGav.split(":");
             if (!scanCliCache.exists()) {
                 boolean downloaded = false;
@@ -261,6 +267,8 @@ public class HubDetectMojo extends BlackduckBase {
             if (!explodedScanCli.exists()) {
                 unzip(scanCliCache, explodedScanCli, true);
             }
+        } else {
+            explodedScanCli = null;
         }
 
         final String rootPath = rootProject.getBasedir().getAbsolutePath();
@@ -286,24 +294,18 @@ public class HubDetectMojo extends BlackduckBase {
         config.put("detect.project.name", blackduckName);
         config.put("detect.source.path", rootPath);
         config.put("detect.maven.scope", scope);
-        config.put("detect.hub.signature.scanner.offline.local.path", explodedScanCli.getAbsolutePath());
+        if (scanCliOffline) {
+            config.put("detect.hub.signature.scanner.offline.local.path", explodedScanCli.getAbsolutePath());
+        }
         if (systemVariables == null || !systemVariables.containsKey("detect.output.path")) {
             config.put("detect.output.path", new File(rootProject.getBuild().getDirectory(), "blackduck").getAbsolutePath());
         }
         if (exclusions != null) {
             config.put("detect.hub.signature.scanner.exclusion.patterns",
-                    Stream.concat(Stream.of(new File(rootProject.getBuild().getDirectory(), "blackduck").getAbsolutePath()),
-                            exclusions.stream().filter(Objects::nonNull).map(e -> {
-                                final File file = new File(rootProject.getBasedir(), e.trim());
-                                try {
-                                    return file.getCanonicalPath();
-                                } catch (final IOException ex) {
-                                    return file.getAbsolutePath();
-                                }
-                            })).map(p -> p.endsWith("/") ? p : (p + '/')).collect(joining(",")));
+                    Stream.concat(Stream.of("/blackduck/"), exclusions.stream().filter(Objects::nonNull).map(String::trim))
+                            .map(p -> (p.startsWith("/") ? "" : "/") + p + (p.endsWith("/") ? "" : ('/'))).collect(joining(",")));
         } else {
-            config.put("detect.hub.signature.scanner.exclusion.patterns",
-                    new File(rootProject.getBuild().getDirectory(), "blackduck").getAbsolutePath() + '/');
+            config.put("detect.hub.signature.scanner.exclusion.patterns", "/blackduck/");
         }
         environment.put("SPRING_APPLICATION_JSON", new GsonBuilder().create().toJson(config));
         command.add("-jar");
