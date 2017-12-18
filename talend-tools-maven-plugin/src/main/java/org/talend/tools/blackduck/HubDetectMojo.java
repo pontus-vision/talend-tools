@@ -257,7 +257,7 @@ public class HubDetectMojo extends BlackduckBase {
             }
 
             explodedScanCli = new File(rootProject.getBuild().getOutputDirectory(),
-                    "blackduck_" + getClass().getSimpleName() + "_scancli");
+                    "blackduck/" + getClass().getSimpleName() + "_scancli");
             if (!explodedScanCli.exists()) {
                 unzip(scanCliCache, explodedScanCli, true);
             }
@@ -345,7 +345,7 @@ public class HubDetectMojo extends BlackduckBase {
             final URL url = new URL(scanCliDownloadUrl);
             final HttpURLConnection connection = HttpURLConnection.class.cast(url.openConnection());
             final File zip = new File(rootProject.getBuild().getDirectory(),
-                    "blackduck_" + getClass().getSimpleName() + "/scan.cli.zip");
+                    "blackduck/" + getClass().getSimpleName() + "/scan.cli.zip");
             zip.getParentFile().mkdirs();
             final int bufferSize = 81920;
             try (final OutputStream os = new BufferedOutputStream(new FileOutputStream(zip), bufferSize)) {
