@@ -110,17 +110,15 @@ public class BlackduckValidateMojo extends BlackduckBase {
 
         validate(report, "operational", it -> it.getRiskProfile().getCategories().getOPERATIONAL().getHIGH(),
                 acceptedOperationalHigh);
-        validate(report, "license", it -> it.getRiskProfile().getCategories().getOPERATIONAL().getHIGH(),
-                acceptedLicenseRiskHigh);
-        validate(report, "vulnerability", it -> it.getRiskProfile().getCategories().getOPERATIONAL().getHIGH(),
-                acceptedVulerabilityRiskHigh);
+        validate(report, "license", it -> it.getLicenseRisk().getHIGH(), acceptedLicenseRiskHigh);
+        validate(report, "vulnerability", it -> it.getVulnerabilityRisk().getHIGH(), acceptedVulerabilityRiskHigh);
     }
 
     private void validate(final VersionReport report, final String what, final ToIntFunction<AggregateBomViewEntry> mapper,
             final int limit) throws MojoFailureException {
-        final int operationalHigh = report.getAggregateBomViewEntries().stream().mapToInt(mapper).sum();
-        if (operationalHigh > limit) {
-            final String message = String.format("Found #%d %s high violations, accepted: #%d", operationalHigh, what, limit);
+        final int count = report.getAggregateBomViewEntries().stream().mapToInt(mapper).sum();
+        if (count > limit) {
+            final String message = String.format("Found #%d %s high violations, accepted: #%d", count, what, limit);
             getLog().error(message);
             throw new MojoFailureException(message);
         }
