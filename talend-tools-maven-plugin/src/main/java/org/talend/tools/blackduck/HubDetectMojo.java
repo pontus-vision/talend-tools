@@ -15,6 +15,7 @@
  */
 package org.talend.tools.blackduck;
 
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static org.apache.maven.plugins.annotations.LifecyclePhase.VERIFY;
 
@@ -23,9 +24,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -98,7 +101,7 @@ public class HubDetectMojo extends BlackduckBase {
     /**
      * The scope used for the detection. It is common to not desire provided.
      */
-    @Parameter(property = "hub-detect.scope", defaultValue = "compile")
+    @Parameter(property = "hub-detect.scope", defaultValue = "runtime")
     private String scope;
 
     /**
@@ -112,6 +115,13 @@ public class HubDetectMojo extends BlackduckBase {
      */
     @Parameter
     private Map<String, String> environment;
+
+    /**
+     * Let you exclude files with an absolute path resolution from relative path.
+     * Avoid headache with hub-detect configuration.
+     */
+    @Parameter
+    private Collection<String> exclusions;
 
     @Component
     private ArtifactResolver resolver;
@@ -179,12 +189,23 @@ public class HubDetectMojo extends BlackduckBase {
             environment.putAll(this.environment);
         }
         final Map<String, String> config = new HashMap<>();
+        // https://blackducksoftware.atlassian.net/wiki/spaces/INTDOCS/pages/68878339/Hub+Detect+Properties
         config.put("blackduck.hub.url", blackduckUrl);
         config.put("blackduck.hub.username", server.getUsername());
         config.put("blackduck.hub.password", server.getPassword());
         config.put("logging.level.com.blackducksoftware.integration", logLevel);
         config.put("detect.project.name", blackduckName);
         config.put("detect.source.path", rootProject.getBasedir().getAbsolutePath());
+        if (exclusions != null) {
+            config.put("detect.hub.signature.scanner.exclusion.patterns", exclusions.stream().filter(Objects::nonNull).map(e -> {
+                final File file = new File(rootProject.getBasedir(), e.trim());
+                try {
+                    return file.getCanonicalPath();
+                } catch (final IOException ex) {
+                    return file.getAbsolutePath();
+                }
+            }).collect(joining(",")));
+        }
         environment.put("SPRING_APPLICATION_JSON", new GsonBuilder().create().toJson(config));
         command.add("-jar");
         command.add(hubDetectCache.getAbsolutePath());
