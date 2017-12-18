@@ -47,6 +47,11 @@
       <artifactId>maven-core</artifactId>
       <version>${maven.version}</version>
     </dependency>
+    <dependency>
+      <groupId>com.blackducksoftware.integration</groupId>
+      <artifactId>hub-common</artifactId>
+      <version>23.0.1</version>
+    </dependency>
   </dependencies>
 
   <developers>

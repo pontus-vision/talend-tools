@@ -15,7 +15,6 @@
  */
 package org.talend.tools.blackduck;
 
-import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.toList;
 import static org.apache.maven.plugins.annotations.LifecyclePhase.VERIFY;
 
@@ -24,13 +23,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.maven.execution.MavenSession;
-import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Component;
@@ -38,8 +34,6 @@ import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.settings.Server;
-import org.apache.maven.settings.crypto.DefaultSettingsDecryptionRequest;
-import org.apache.maven.settings.crypto.SettingsDecrypter;
 import org.apache.maven.shared.utils.io.FileUtils;
 import org.apache.maven.shared.utils.io.IOUtil;
 import org.eclipse.aether.artifact.DefaultArtifact;
@@ -49,11 +43,13 @@ import org.eclipse.aether.resolution.ArtifactRequest;
 import org.eclipse.aether.resolution.ArtifactResolutionException;
 import org.eclipse.aether.resolution.ArtifactResult;
 
+import com.google.gson.GsonBuilder;
+
 /**
  * Download if not already cached in maven repository and execute blackduck hub-detect.
  */
 @Mojo(name = "hub-detect", defaultPhase = VERIFY, threadSafe = true)
-public class HubDetectMojo extends AbstractMojo {
+public class HubDetectMojo extends BlackduckBase {
 
     /**
      * Where the jar will be put for the execution.
@@ -87,28 +83,10 @@ public class HubDetectMojo extends AbstractMojo {
     private String artifactRepositoryName;
 
     /**
-     * Which server contains the blackduck credentials in your settings.xml.
-     */
-    @Parameter(property = "hub-detect.serverId", defaultValue = "blackduck")
-    private String serverId;
-
-    /**
-     * The blackduck url to use.
-     */
-    @Parameter(property = "hub-detect.blackduckUrl")
-    private String blackduckUrl;
-
-    /**
      * The log level used for the inspection.
      */
     @Parameter(property = "hub-detect.logLevel", defaultValue = "ALL")
     private String logLevel;
-
-    /**
-     * The application name in blackduck.
-     */
-    @Parameter(property = "hub-detect.blackduckName", defaultValue = "${project.name}")
-    private String blackduckName;
 
     /**
      * Should the exit code of hub-detect be validated. Can be true or any int. If true, 0 will be tested otherwise
@@ -116,6 +94,12 @@ public class HubDetectMojo extends AbstractMojo {
      */
     @Parameter(property = "hub-detect.validateExitCode", defaultValue = "0")
     private String validateExitCode;
+
+    /**
+     * The scope used for the detection. It is common to not desire provided.
+     */
+    @Parameter(property = "hub-detect.scope", defaultValue = "compile")
+    private String scope;
 
     /**
      * Let you add system properties on hub-detect execution.
@@ -129,78 +113,17 @@ public class HubDetectMojo extends AbstractMojo {
     @Parameter
     private Map<String, String> environment;
 
-    /**
-     * Enables to skip the execution.
-     */
-    @Parameter(property = "hub-detect.skip", defaultValue = "false")
-    private boolean skip;
-
-    /**
-     * Enables to skip the execution.
-     */
-    @Parameter(property = "hub-detect.atTheEnd", defaultValue = "true")
-    private boolean atTheEnd;
-
-    @Parameter(defaultValue = "${session}", readonly = true)
-    private MavenSession session;
-
-    @Parameter(defaultValue = "${reactorProjects}", required = true, readonly = true)
-    private List<MavenProject> reactorProjects;
-
-    @Component
-    private SettingsDecrypter settingsDecrypter;
-
     @Component
     private ArtifactResolver resolver;
 
     @Override
-    public void execute() throws MojoExecutionException, MojoFailureException {
-        final AtomicInteger counter = AtomicInteger.class.cast(
-                session.getRequest().getData().computeIfAbsent(getClass().getName() + ".counter", k -> new AtomicInteger()));
-        if (atTheEnd && !skip /* if skipped log the message */ && counter.incrementAndGet() != reactorProjects.size()) {
-            getLog().debug("Not yet at the last project, will only run when reached to not do it multiple times " + counter.get()
-                    + '/' + reactorProjects.size());
-            return;
-        }
-        if (skip) {
-            getLog().info("Execution is skipped");
-            return;
-        }
+    public void doExecute(final MavenProject rootProject, final Server server)
+            throws MojoExecutionException, MojoFailureException {
 
-        MavenProject rootProject = session.getCurrentProject();
-        while (rootProject.getParent() != null) {
-            rootProject = rootProject.getParent();
-        }
-
-        if (session.getSettings().isOffline()) {
-            getLog().info("Execution is offline, blackduck hub-detect plugin is skipped");
-            return;
-        }
-
-        if (blackduckUrl == null) {
-            getLog().error("No url specified, please set blackduckUrl");
-            return;
-        }
         if (blackduckName == null) {
             getLog().error("No name specified, please set blackduckName");
             return;
         }
-
-        final File root = rootProject.getBasedir();
-
-        final Optional<Server> serverOpt = session.getSettings().getServers().stream().filter(s -> serverId.equals(s.getId()))
-                .findFirst();
-        if (!serverOpt.isPresent()) {
-            getLog().warn("No server '" + serverId + "', skipping blackduck execution");
-            return;
-        }
-
-        Server server = serverOpt.get();
-        if ("skip".equals(server.getPassword())) {
-            getLog().warn("server '" + serverId + "' was configured to be skipped");
-            return;
-        }
-        server = ofNullable(settingsDecrypter.decrypt(new DefaultSettingsDecryptionRequest(server)).getServer()).orElse(server);
 
         final File jar;
         final String[] gav = executableGav.split(":");
@@ -230,19 +153,17 @@ public class HubDetectMojo extends AbstractMojo {
                 final ArtifactResult artifactResult = resolver.resolveArtifact(session.getRepositorySession(),
                         new ArtifactRequest(new DefaultArtifact(gav[0], gav[1], "jar", hubDetectVersion), repositories, null));
                 if (artifactResult.isMissing()) {
-                    throw new IllegalStateException("Didn't find '" + executableGav + "'");
+                    throw new IllegalStateException(String.format("Didn't find '%s'", executableGav));
                 }
                 jar = artifactResult.getArtifact().getFile();
             } catch (final ArtifactResolutionException e) {
-                throw new IllegalStateException("Didn't find '" + executableGav + "'", e);
+                throw new IllegalStateException(String.format("Didn't find '%s'", executableGav), e);
             }
             try {
                 FileUtils.copyFile(jar, hubDetectCache);
             } catch (final IOException e) {
                 throw new IllegalStateException(e);
             }
-        } else {
-            jar = hubDetectCache;
         }
 
         final File java = new File(System.getProperty("java.home"), "bin/java");
@@ -252,19 +173,21 @@ public class HubDetectMojo extends AbstractMojo {
             command.addAll(systemVariables.entrySet().stream().map(e -> String.format("-D%s=%s", e.getKey(), e.getValue()))
                     .collect(toList()));
         }
-        command.add("-jar");
-        command.add(hubDetectCache.getAbsolutePath());
         final ProcessBuilder processBuilder = new ProcessBuilder().inheritIO().command(command);
         final Map<String, String> environment = processBuilder.environment();
         if (this.environment != null) {
             environment.putAll(this.environment);
         }
-        environment.put("SPRING_APPLICATION_JSON",
-                "{\n\"blackduck.hub.url\": \"" + blackduckUrl + "\",\n" + "\"blackduck.hub.username\": \"" + server.getUsername()
-                        + "\",\n" + "\"blackduck.hub.password\": \"" + server.getPassword() + "\",\n"
-                        + "\"logging.level.com.blackducksoftware.integration\": \"" + logLevel + "\",\n"
-                        + "\"detect.project.name\": \"" + blackduckName + "\",\n" + "\"detect.source.path\": \""
-                        + root.getAbsolutePath() + "\"\n}");
+        final Map<String, String> config = new HashMap<>();
+        config.put("blackduck.hub.url", blackduckUrl);
+        config.put("blackduck.hub.username", server.getUsername());
+        config.put("blackduck.hub.password", server.getPassword());
+        config.put("logging.level.com.blackducksoftware.integration", logLevel);
+        config.put("detect.project.name", blackduckName);
+        config.put("detect.source.path", rootProject.getBasedir().getAbsolutePath());
+        environment.put("SPRING_APPLICATION_JSON", new GsonBuilder().create().toJson(config));
+        command.add("-jar");
+        command.add(hubDetectCache.getAbsolutePath());
         getLog().info("Launching: " + processBuilder.command());
 
         final int exitStatus;
@@ -279,7 +202,7 @@ public class HubDetectMojo extends AbstractMojo {
             throw new IllegalStateException(e);
         }
 
-        getLog().info("Output: " + exitStatus);
+        getLog().info(String.format("Output: %d", exitStatus));
 
         int expectedExitCode;
         try {
@@ -292,7 +215,7 @@ public class HubDetectMojo extends AbstractMojo {
             }
         }
         if (exitStatus != expectedExitCode) {
-            throw new IllegalStateException("Invalid exit status: " + exitStatus);
+            throw new IllegalStateException(String.format("Invalid exit status: %d", exitStatus));
         }
     }
 }
