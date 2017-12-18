@@ -198,6 +198,7 @@ public class HubDetectMojo extends BlackduckBase {
         config.put("logging.level.com.blackducksoftware.integration", logLevel);
         config.put("detect.project.name", blackduckName);
         config.put("detect.source.path", rootPath);
+        config.put("detect.maven.scope", scope);
         if (exclusions != null) {
             config.put("detect.hub.signature.scanner.exclusion.patterns", exclusions.stream().filter(Objects::nonNull).map(e -> {
                 final File file = new File(rootProject.getBasedir(), e.trim());
