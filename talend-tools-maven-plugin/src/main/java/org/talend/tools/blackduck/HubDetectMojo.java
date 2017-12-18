@@ -182,7 +182,7 @@ public class HubDetectMojo extends BlackduckBase {
         command.add(java.getAbsolutePath());
         if (systemVariables != null) {
             command.addAll(systemVariables.entrySet().stream()
-                    .map(e -> String.format("-D%s=%s", e.getKey(), e.getValue().replace("${rootProject}", rootPath)))
+                    .map(e -> String.format("-D%s=%s", e.getKey(), handlePlaceholders(rootPath, e.getValue())))
                     .collect(toList()));
         }
         final ProcessBuilder processBuilder = new ProcessBuilder().inheritIO().command(command);
@@ -240,5 +240,9 @@ public class HubDetectMojo extends BlackduckBase {
         if (exitStatus != expectedExitCode) {
             throw new IllegalStateException(String.format("Invalid exit status: %d", exitStatus));
         }
+    }
+
+    private String handlePlaceholders(final String rootPath, final String value) {
+        return value.replace("$rootProject", rootPath);
     }
 }
