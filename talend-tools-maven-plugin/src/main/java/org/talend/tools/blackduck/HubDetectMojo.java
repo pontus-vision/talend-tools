@@ -88,7 +88,7 @@ public class HubDetectMojo extends BlackduckBase {
     /**
      * The log level used for the inspection.
      */
-    @Parameter(property = "hub-detect.logLevel", defaultValue = "ALL")
+    @Parameter(property = "hub-detect.logLevel", defaultValue = "TRACE") // ALL doesn't work with mvn slf4j default impl
     private String logLevel;
 
     /**
@@ -176,11 +176,13 @@ public class HubDetectMojo extends BlackduckBase {
             }
         }
 
+        final String rootPath = rootProject.getBasedir().getAbsolutePath();
         final File java = new File(System.getProperty("java.home"), "bin/java");
         final List<String> command = new ArrayList<>();
         command.add(java.getAbsolutePath());
         if (systemVariables != null) {
-            command.addAll(systemVariables.entrySet().stream().map(e -> String.format("-D%s=%s", e.getKey(), e.getValue()))
+            command.addAll(systemVariables.entrySet().stream()
+                    .map(e -> String.format("-D%s=%s", e.getKey(), e.getValue().replace("${rootProject}", rootPath)))
                     .collect(toList()));
         }
         final ProcessBuilder processBuilder = new ProcessBuilder().inheritIO().command(command);
@@ -195,7 +197,7 @@ public class HubDetectMojo extends BlackduckBase {
         config.put("blackduck.hub.password", server.getPassword());
         config.put("logging.level.com.blackducksoftware.integration", logLevel);
         config.put("detect.project.name", blackduckName);
-        config.put("detect.source.path", rootProject.getBasedir().getAbsolutePath());
+        config.put("detect.source.path", rootPath);
         if (exclusions != null) {
             config.put("detect.hub.signature.scanner.exclusion.patterns", exclusions.stream().filter(Objects::nonNull).map(e -> {
                 final File file = new File(rootProject.getBasedir(), e.trim());
@@ -204,7 +206,7 @@ public class HubDetectMojo extends BlackduckBase {
                 } catch (final IOException ex) {
                     return file.getAbsolutePath();
                 }
-            }).collect(joining(",")));
+            }).map(p -> p.endsWith("/") ? p : (p + '/')).collect(joining(",")));
         }
         environment.put("SPRING_APPLICATION_JSON", new GsonBuilder().create().toJson(config));
         command.add("-jar");
