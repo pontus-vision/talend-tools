@@ -19,6 +19,7 @@ import static org.apache.maven.plugins.annotations.LifecyclePhase.VERIFY;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.function.ToIntFunction;
 
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -31,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import com.blackducksoftware.integration.exception.EncryptionException;
 import com.blackducksoftware.integration.exception.IntegrationException;
 import com.blackducksoftware.integration.hub.CredentialsBuilder;
+import com.blackducksoftware.integration.hub.api.report.AggregateBomViewEntry;
 import com.blackducksoftware.integration.hub.api.report.ReportCategoriesEnum;
 import com.blackducksoftware.integration.hub.api.report.ReportRequestService;
 import com.blackducksoftware.integration.hub.api.report.VersionReport;
@@ -106,35 +108,21 @@ public class BlackduckValidateMojo extends BlackduckBase {
             throw new MojoExecutionException(e.getMessage(), e);
         }
 
-        {
-            final int operationalHigh = report.getAggregateBomViewEntries().stream()
-                    .mapToInt(it -> it.getRiskProfile().getCategories().getOPERATIONAL().getHIGH()).sum();
-            if (operationalHigh > acceptedOperationalHigh) {
-                final String message = String.format("Found #%d operational high violations, accepted: #%d", operationalHigh,
-                        acceptedOperationalHigh);
-                getLog().error(message);
-                throw new MojoFailureException(message);
-            }
-        }
-        {
-            final int licenseHigh = report.getAggregateBomViewEntries().stream().mapToInt(it -> it.getLicenseRisk().getHIGH())
-                    .sum();
-            if (licenseHigh > acceptedLicenseRiskHigh) {
-                final String message = String.format("Found #%d license violations, accepted: #%d", licenseHigh,
-                        acceptedLicenseRiskHigh);
-                getLog().error(message);
-                throw new MojoFailureException(message);
-            }
-        }
-        {
-            final int vulnerabilityHigh = report.getAggregateBomViewEntries().stream()
-                    .mapToInt(it -> it.getVulnerabilityRisk().getHIGH()).sum();
-            if (vulnerabilityHigh > acceptedVulerabilityRiskHigh) {
-                final String message = String.format("Found #%d vulnerability violations, accepted: #%d", vulnerabilityHigh,
-                        acceptedVulerabilityRiskHigh);
-                getLog().error(message);
-                throw new MojoFailureException(message);
-            }
+        validate(report, "operational", it -> it.getRiskProfile().getCategories().getOPERATIONAL().getHIGH(),
+                acceptedOperationalHigh);
+        validate(report, "license", it -> it.getRiskProfile().getCategories().getOPERATIONAL().getHIGH(),
+                acceptedLicenseRiskHigh);
+        validate(report, "vulnerability", it -> it.getRiskProfile().getCategories().getOPERATIONAL().getHIGH(),
+                acceptedVulerabilityRiskHigh);
+    }
+
+    private void validate(final VersionReport report, final String what, final ToIntFunction<AggregateBomViewEntry> mapper,
+            final int limit) throws MojoFailureException {
+        final int operationalHigh = report.getAggregateBomViewEntries().stream().mapToInt(mapper).sum();
+        if (operationalHigh > limit) {
+            final String message = String.format("Found #%d %s high violations, accepted: #%d", operationalHigh, what, limit);
+            getLog().error(message);
+            throw new MojoFailureException(message);
         }
     }
 }
