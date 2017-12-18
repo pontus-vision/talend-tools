@@ -88,7 +88,7 @@ public class HubDetectMojo extends BlackduckBase {
     /**
      * The log level used for the inspection.
      */
-    @Parameter(property = "hub-detect.logLevel", defaultValue = "TRACE") // ALL doesn't work with mvn slf4j default impl
+    @Parameter(property = "hub-detect.logLevel", defaultValue = "INFO")
     private String logLevel;
 
     /**
