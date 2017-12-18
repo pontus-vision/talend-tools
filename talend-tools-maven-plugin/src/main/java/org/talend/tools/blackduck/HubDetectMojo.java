@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -290,14 +291,19 @@ public class HubDetectMojo extends BlackduckBase {
             config.put("detect.output.path", new File(rootProject.getBuild().getDirectory(), "blackduck").getAbsolutePath());
         }
         if (exclusions != null) {
-            config.put("detect.hub.signature.scanner.exclusion.patterns", exclusions.stream().filter(Objects::nonNull).map(e -> {
-                final File file = new File(rootProject.getBasedir(), e.trim());
-                try {
-                    return file.getCanonicalPath();
-                } catch (final IOException ex) {
-                    return file.getAbsolutePath();
-                }
-            }).map(p -> p.endsWith("/") ? p : (p + '/')).collect(joining(",")));
+            config.put("detect.hub.signature.scanner.exclusion.patterns",
+                    Stream.concat(Stream.of(new File(rootProject.getBuild().getDirectory(), "blackduck").getAbsolutePath()),
+                            exclusions.stream().filter(Objects::nonNull).map(e -> {
+                                final File file = new File(rootProject.getBasedir(), e.trim());
+                                try {
+                                    return file.getCanonicalPath();
+                                } catch (final IOException ex) {
+                                    return file.getAbsolutePath();
+                                }
+                            })).map(p -> p.endsWith("/") ? p : (p + '/')).collect(joining(",")));
+        } else {
+            config.put("detect.hub.signature.scanner.exclusion.patterns",
+                    new File(rootProject.getBuild().getDirectory(), "blackduck").getAbsolutePath() + '/');
         }
         environment.put("SPRING_APPLICATION_JSON", new GsonBuilder().create().toJson(config));
         command.add("-jar");
