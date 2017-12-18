@@ -127,8 +127,8 @@ public class BlackduckValidateMojo extends BlackduckBase {
             }
         }
         {
-            final int vulnerabilityHigh = report.getAggregateBomViewEntries().stream().mapToInt(it -> it.getVulnerabilityRisk().getHIGH())
-                    .sum();
+            final int vulnerabilityHigh = report.getAggregateBomViewEntries().stream()
+                    .mapToInt(it -> it.getVulnerabilityRisk().getHIGH()).sum();
             if (vulnerabilityHigh > acceptedVulerabilityRiskHigh) {
                 final String message = String.format("Found #%d vulnerability violations, accepted: #%d", vulnerabilityHigh,
                         acceptedVulerabilityRiskHigh);
