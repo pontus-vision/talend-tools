@@ -262,7 +262,7 @@ public class HubDetectMojo extends BlackduckBase {
                 }
             }
 
-            explodedScanCli = new File(rootProject.getBuild().getOutputDirectory(),
+            explodedScanCli = new File(rootProject.getBuild().getDirectory(),
                     "blackduck/" + getClass().getSimpleName() + "_scancli");
             if (!explodedScanCli.exists()) {
                 unzip(scanCliCache, explodedScanCli, true);
