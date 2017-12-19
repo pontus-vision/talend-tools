@@ -15,18 +15,35 @@
  */
 package org.talend.tools.blackduck;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static org.apache.maven.plugins.annotations.LifecyclePhase.VERIFY;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
+import org.apache.maven.artifact.handler.DefaultArtifactHandler;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Component;
@@ -34,6 +51,8 @@ import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.settings.Server;
+import org.apache.maven.shared.artifact.deploy.ArtifactDeployer;
+import org.apache.maven.shared.artifact.deploy.ArtifactDeployerException;
 import org.apache.maven.shared.utils.io.FileUtils;
 import org.apache.maven.shared.utils.io.IOUtil;
 import org.eclipse.aether.artifact.DefaultArtifact;
@@ -52,10 +71,16 @@ import com.google.gson.GsonBuilder;
 public class HubDetectMojo extends BlackduckBase {
 
     /**
-     * Where the jar will be put for the execution.
+     * Where the hub-detect jar will be put for the execution.
      */
     @Parameter(property = "hub-detect.hubDetectCache", defaultValue = "${project.build.directory}/blackduck/hub-detect.jar")
     private File hubDetectCache;
+
+    /**
+     * Where the scan-cli binary will be put for the execution.
+     */
+    @Parameter(property = "hub-detect.hubDetectCache", defaultValue = "${project.build.directory}/blackduck/scan-cli")
+    private File scanCliCache;
 
     /**
      * In which (artifactory) repository the jar can be found.
@@ -77,6 +102,30 @@ public class HubDetectMojo extends BlackduckBase {
     private String executableGav;
 
     /**
+     * The scan cli (cache) coordinates.
+     */
+    @Parameter(property = "hub-detect.scanCliDownloadUrl", defaultValue = "https://blackduck.talend.com/download/scan.cli.zip")
+    private String scanCliDownloadUrl;
+
+    /**
+     * Should scan cli be used offline.
+     */
+    @Parameter(property = "hub-detect.scanCliOffline", defaultValue = "false")
+    private boolean scanCliOffline;
+
+    /**
+     * The jar coordinates. You can use it to fix the version of hub-detect.
+     */
+    @Parameter(property = "hub-detect.scanCliGav", defaultValue = "com.blackducksoftware.integration:scan-cli:latest")
+    private String scanCliGav;
+
+    /**
+     * Allows to force to redownload scancli.
+     */
+    @Parameter(property = "hub-detect.forceScanCliDownload", defaultValue = "false")
+    private boolean forceScanCliDownload;
+
+    /**
      * The repository to use to download the executable jar.
      */
     @Parameter(property = "hub-detect.artifactRepositoryName", defaultValue = "bds-integrations-release")
@@ -85,7 +134,7 @@ public class HubDetectMojo extends BlackduckBase {
     /**
      * The log level used for the inspection.
      */
-    @Parameter(property = "hub-detect.logLevel", defaultValue = "ALL")
+    @Parameter(property = "hub-detect.logLevel", defaultValue = "INFO")
     private String logLevel;
 
     /**
@@ -98,7 +147,7 @@ public class HubDetectMojo extends BlackduckBase {
     /**
      * The scope used for the detection. It is common to not desire provided.
      */
-    @Parameter(property = "hub-detect.scope", defaultValue = "compile")
+    @Parameter(property = "hub-detect.scope", defaultValue = "runtime")
     private String scope;
 
     /**
@@ -113,8 +162,18 @@ public class HubDetectMojo extends BlackduckBase {
     @Parameter
     private Map<String, String> environment;
 
+    /**
+     * Let you exclude files with an absolute path resolution from relative path.
+     * Avoid headache with hub-detect configuration.
+     */
+    @Parameter
+    private Collection<String> exclusions;
+
     @Component
     private ArtifactResolver resolver;
+
+    @Component
+    private ArtifactDeployer deployer;
 
     @Override
     public void doExecute(final MavenProject rootProject, final Server server)
@@ -125,52 +184,100 @@ public class HubDetectMojo extends BlackduckBase {
             return;
         }
 
+        final List<RemoteRepository> repositories = new ArrayList<>(rootProject.getRemoteProjectRepositories().size() + 1);
+        repositories.add(new RemoteRepository.Builder("blackduck_" + getClass().getName(), "default",
+                artifactoryBase + '/' + artifactRepositoryName).build());
+        repositories.addAll(rootProject.getRemoteProjectRepositories());
+
+        final String hubDetectVersion;
         final File jar;
-        final String[] gav = executableGav.split(":");
-        if (!hubDetectCache.exists()) {
-            final String hubDetectVersion;
-            if (!"latest".equalsIgnoreCase(gav[2])) {
-                hubDetectVersion = gav[2];
-            } else {
+        {
+            final String[] gav = executableGav.split(":");
+            if (!hubDetectCache.exists()) {
+                hubDetectVersion = getHubDetectVersion(gav);
+
+                hubDetectCache.getParentFile().mkdirs();
+
                 try {
-                    final URL versionUrl = new URL(
-                            String.format(latestVersionUrl, artifactoryBase, gav[0], gav[1], artifactRepositoryName));
-                    try (final InputStream stream = versionUrl.openStream()) {
-                        hubDetectVersion = IOUtil.toString(stream);
+                    final ArtifactResult artifactResult = resolver.resolveArtifact(session.getRepositorySession(),
+                            new ArtifactRequest(new DefaultArtifact(gav[0], gav[1], "jar", hubDetectVersion), repositories,
+                                    null));
+                    if (artifactResult.isMissing()) {
+                        throw new IllegalStateException(String.format("Didn't find '%s'", executableGav));
                     }
+                    jar = artifactResult.getArtifact().getFile();
+                } catch (final ArtifactResolutionException e) {
+                    throw new IllegalStateException(String.format("Didn't find '%s'", executableGav), e);
+                }
+                try {
+                    FileUtils.copyFile(jar, hubDetectCache);
                 } catch (final IOException e) {
-                    throw new IllegalArgumentException(e); // unlikely
+                    throw new IllegalStateException(e);
                 }
-            }
-
-            hubDetectCache.getParentFile().mkdirs();
-
-            final List<RemoteRepository> repositories = new ArrayList<>(rootProject.getRemoteProjectRepositories().size() + 1);
-            repositories.add(new RemoteRepository.Builder("blackduck_" + getClass().getName(), "default",
-                    artifactoryBase + '/' + artifactRepositoryName).build());
-            repositories.addAll(rootProject.getRemoteProjectRepositories());
-            try {
-                final ArtifactResult artifactResult = resolver.resolveArtifact(session.getRepositorySession(),
-                        new ArtifactRequest(new DefaultArtifact(gav[0], gav[1], "jar", hubDetectVersion), repositories, null));
-                if (artifactResult.isMissing()) {
-                    throw new IllegalStateException(String.format("Didn't find '%s'", executableGav));
-                }
-                jar = artifactResult.getArtifact().getFile();
-            } catch (final ArtifactResolutionException e) {
-                throw new IllegalStateException(String.format("Didn't find '%s'", executableGav), e);
-            }
-            try {
-                FileUtils.copyFile(jar, hubDetectCache);
-            } catch (final IOException e) {
-                throw new IllegalStateException(e);
+            } else {
+                hubDetectVersion = getHubDetectVersion(gav);
             }
         }
 
+        final File explodedScanCli;
+        if (scanCliOffline) {
+            final String[] gav = scanCliGav.split(":");
+            if (!scanCliCache.exists()) {
+                boolean downloaded = false;
+                File scanCliZip;
+                if (forceScanCliDownload) {
+                    downloaded = true;
+                    scanCliZip = downloadScanCli(rootProject);
+                } else {
+                    try {
+                        final ArtifactResult artifactResult = resolver.resolveArtifact(session.getRepositorySession(),
+                                new ArtifactRequest(new DefaultArtifact(gav[0], gav[1], "zip", hubDetectVersion), emptyList(),
+                                        null));
+                        if (artifactResult.isMissing()) {
+                            downloaded = true;
+                            scanCliZip = downloadScanCli(rootProject);
+                        } else {
+                            scanCliZip = artifactResult.getArtifact().getFile();
+                        }
+                    } catch (final ArtifactResolutionException e) {
+                        scanCliZip = downloadScanCli(rootProject);
+                        downloaded = true;
+                    }
+                }
+                if (downloaded) {
+                    try {
+                        final org.apache.maven.artifact.DefaultArtifact artifact = new org.apache.maven.artifact.DefaultArtifact(
+                                gav[0], gav[1], hubDetectVersion, "compile", "zip", null, new DefaultArtifactHandler());
+                        artifact.setFile(scanCliZip);
+                        deployer.deploy(session.getProjectBuildingRequest(), session.getLocalRepository(),
+                                singletonList(artifact));
+                    } catch (final ArtifactDeployerException e) {
+                        throw new MojoExecutionException(e.getMessage(), e);
+                    }
+                }
+                try {
+                    FileUtils.copyFile(scanCliZip, scanCliCache);
+                } catch (final IOException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+
+            explodedScanCli = new File(rootProject.getBuild().getDirectory(),
+                    "blackduck/" + getClass().getSimpleName() + "_scancli");
+            if (!explodedScanCli.exists()) {
+                unzip(scanCliCache, explodedScanCli, true);
+            }
+        } else {
+            explodedScanCli = null;
+        }
+
+        final String rootPath = rootProject.getBasedir().getAbsolutePath();
         final File java = new File(System.getProperty("java.home"), "bin/java");
         final List<String> command = new ArrayList<>();
         command.add(java.getAbsolutePath());
         if (systemVariables != null) {
-            command.addAll(systemVariables.entrySet().stream().map(e -> String.format("-D%s=%s", e.getKey(), e.getValue()))
+            command.addAll(systemVariables.entrySet().stream()
+                    .map(e -> String.format("-D%s=%s", e.getKey(), handlePlaceholders(rootPath, e.getValue())))
                     .collect(toList()));
         }
         final ProcessBuilder processBuilder = new ProcessBuilder().inheritIO().command(command);
@@ -179,12 +286,28 @@ public class HubDetectMojo extends BlackduckBase {
             environment.putAll(this.environment);
         }
         final Map<String, String> config = new HashMap<>();
+        // https://blackducksoftware.atlassian.net/wiki/spaces/INTDOCS/pages/68878339/Hub+Detect+Properties
         config.put("blackduck.hub.url", blackduckUrl);
         config.put("blackduck.hub.username", server.getUsername());
         config.put("blackduck.hub.password", server.getPassword());
         config.put("logging.level.com.blackducksoftware.integration", logLevel);
         config.put("detect.project.name", blackduckName);
-        config.put("detect.source.path", rootProject.getBasedir().getAbsolutePath());
+        config.put("detect.source.path", rootPath);
+        config.put("detect.maven.scope", scope);
+        if (scanCliOffline) {
+            config.put("detect.hub.signature.scanner.offline.local.path", explodedScanCli.getAbsolutePath());
+        }
+        if (systemVariables == null || !systemVariables.containsKey("detect.output.path")) {
+            config.put("detect.output.path", new File(rootProject.getBuild().getDirectory(), "blackduck").getAbsolutePath());
+        }
+        final String enforcedExcluded = "/blackduck/";
+        if (exclusions != null) {
+            config.put("detect.hub.signature.scanner.exclusion.patterns",
+                    Stream.concat(Stream.of(enforcedExcluded), exclusions.stream().filter(Objects::nonNull).map(String::trim))
+                            .collect(joining(",")));
+        } else {
+            config.put("detect.hub.signature.scanner.exclusion.patterns", "/blackduck/");
+        }
         environment.put("SPRING_APPLICATION_JSON", new GsonBuilder().create().toJson(config));
         command.add("-jar");
         command.add(hubDetectCache.getAbsolutePath());
@@ -218,4 +341,74 @@ public class HubDetectMojo extends BlackduckBase {
             throw new IllegalStateException(String.format("Invalid exit status: %d", exitStatus));
         }
     }
+
+    private File downloadScanCli(final MavenProject rootProject) { // todo: use wagon to have progress
+        getLog().info("Downloading scan.cli.zip, can take some time...");
+        try {
+            final URL url = new URL(scanCliDownloadUrl);
+            final HttpURLConnection connection = HttpURLConnection.class.cast(url.openConnection());
+            final File zip = new File(rootProject.getBuild().getDirectory(),
+                    "blackduck/" + getClass().getSimpleName() + "/scan.cli.zip");
+            zip.getParentFile().mkdirs();
+            final int bufferSize = 81920;
+            try (final OutputStream os = new BufferedOutputStream(new FileOutputStream(zip), bufferSize)) {
+                IOUtil.copy(connection.getInputStream(), os, bufferSize);
+            } finally {
+                connection.disconnect();
+            }
+            return zip;
+        } catch (final IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private String getHubDetectVersion(final String[] gav) {
+        String hubDetectVersion;
+        if (!"latest".equalsIgnoreCase(gav[2])) {
+            hubDetectVersion = gav[2];
+        } else {
+            try {
+                final URL versionUrl = new URL(
+                        String.format(latestVersionUrl, artifactoryBase, gav[0], gav[1], artifactRepositoryName));
+                try (final InputStream stream = versionUrl.openStream()) {
+                    hubDetectVersion = IOUtil.toString(stream);
+                }
+            } catch (final IOException e) {
+                throw new IllegalArgumentException(e); // unlikely
+            }
+        }
+        return hubDetectVersion;
+    }
+
+    private String handlePlaceholders(final String rootPath, final String value) {
+        return value.replace("$rootProject", rootPath);
+    }
+
+    private void unzip(final File zipFile, final File destination, final boolean noparent) {
+        getLog().info(String.format("Extracting '%s' to '%s'", zipFile.getAbsolutePath(), destination.getAbsolutePath()));
+        try {
+            final ZipInputStream in = new ZipInputStream(new BufferedInputStream(new FileInputStream(zipFile)));
+            ZipEntry entry;
+            while ((entry = in.getNextEntry()) != null) {
+                String path = entry.getName();
+                if (noparent) {
+                    path = path.replaceFirst("^[^/]+/", "");
+                }
+                final File file = new File(destination, path);
+
+                if (entry.isDirectory()) {
+                    file.mkdirs();
+                    continue;
+                }
+
+                file.getParentFile().mkdirs();
+                Files.copy(in, file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            in.close();
+        } catch (final Exception e) {
+            throw new IllegalStateException("Unable to unzip " + zipFile.getAbsolutePath(), e);
+        }
+    }
+
 }
