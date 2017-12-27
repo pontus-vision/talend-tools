@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -247,7 +248,7 @@ public class HubDetectMojo extends BlackduckBase {
                 if (downloaded) {
                     try {
                         final org.apache.maven.artifact.DefaultArtifact artifact = new org.apache.maven.artifact.DefaultArtifact(
-                                gav[0], gav[1], hubDetectVersion, "compile", "zip", null, new DefaultArtifactHandler());
+                                gav[0], gav[1], hubDetectVersion, "compile", "zip", null, new DefaultArtifactHandler("zip"));
                         artifact.setFile(scanCliZip);
                         deployer.deploy(session.getProjectBuildingRequest(), session.getLocalRepository(),
                                 singletonList(artifact));
@@ -343,19 +344,40 @@ public class HubDetectMojo extends BlackduckBase {
     }
 
     private File downloadScanCli(final MavenProject rootProject) { // todo: use wagon to have progress
-        getLog().info("Downloading scan.cli.zip, can take some time...");
+        getLog().info("Downloading scan.cli.zip, can take some time...\r");
         try {
             final URL url = new URL(scanCliDownloadUrl);
             final HttpURLConnection connection = HttpURLConnection.class.cast(url.openConnection());
             final File zip = new File(rootProject.getBuild().getDirectory(),
                     "blackduck/" + getClass().getSimpleName() + "/scan.cli.zip");
             zip.getParentFile().mkdirs();
-            final int bufferSize = 81920;
+            final int bufferSize = 819200;
+            long downloaded = 0;
+            final long start = System.nanoTime();
+            final long length = connection.getContentLengthLong();
             try (final OutputStream os = new BufferedOutputStream(new FileOutputStream(zip), bufferSize)) {
-                IOUtil.copy(connection.getInputStream(), os, bufferSize);
+                final byte[] buffer = new byte[bufferSize];
+                int read;
+                int percentage = -1;
+                final InputStream inputStream = connection.getInputStream();
+                while ((read = inputStream.read(buffer)) >= 0) {
+                    downloaded += read;
+                    if (read > 0) {
+                        os.write(buffer, 0, read);
+                        final float value = downloaded * 1f / length;
+                        final int pcTracker = (int) (value * 100);
+                        if (percentage != pcTracker) {
+                            System.out.printf("Downloading scan.cli.zip - %2.2f%%\r", value);
+                            System.out.flush();
+                            percentage = pcTracker;
+                        }
+                    }
+                }
             } finally {
                 connection.disconnect();
             }
+            final long end = System.nanoTime();
+            getLog().info(String.format("Downloaded scan.cli.zip in %d seconds", TimeUnit.NANOSECONDS.toSeconds(end - start)));
             return zip;
         } catch (final IOException e) {
             throw new IllegalStateException(e);
