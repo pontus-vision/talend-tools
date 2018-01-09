@@ -84,7 +84,7 @@ println("Will launch the '${release}' release in tag ${tagName} and use " +
 
 // launch mvn release:prepare
 def prepareCommand = [mvn, 'release:prepare', '--batch-mode',
-                      "-Dtag=${tagName}",
+                      "-Dtag=${tagName}", "-DpushChanges=true",
                       "-DreleaseVersion=${release}", "-DdevelopmentVersion=${nextSnapshot}"]
 println(prepareCommand)
 def prepare = new ProcessBuilder(prepareCommand as String[])
