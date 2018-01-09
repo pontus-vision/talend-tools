@@ -42,7 +42,7 @@ if (artifactId == null) {
     throw new IllegalArgumentException("No artifactId in the pom ${pom.absolutePath}")
 }
 if (artifactId.endsWith('-parent')) {
-    artifactId = artifactId.subtring(0, artifactId.length() - '-parent'.length())
+    artifactId = artifactId.substring(0, artifactId.length() - '-parent'.length())
 }
 def version = project.version.text()
 if (version == null) {
