@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -107,11 +108,17 @@ func checkApprovals(pullRequest *github.PullRequest) (*pullRequestStatus, error)
 		return status, errors.Wrap(err, "Can't get pull request reviews")
 	}
 
+	sort.Slice(reviews, func(i, j int) bool {
+		return reviews[i].GetSubmittedAt().Before(reviews[j].GetSubmittedAt())
+	})
 	var approvedReviewsCount = 0
+	var approvedUserReviews = make(map[int64]string)
 	for _, review := range reviews {
-		if review.GetState() == "APPROVED" {
+		if review.GetState() == "APPROVED" &&
+			approvedUserReviews[review.GetUser().GetID()] != "APPROVED" {
 			approvedReviewsCount++
 		}
+		approvedUserReviews[review.GetUser().GetID()] = review.GetState()
 	}
 
 	minPullRequestApprovals, err := strconv.Atoi(minPRReviewers)

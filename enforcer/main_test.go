@@ -22,7 +22,16 @@ func TestMain(m *testing.M) {
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/repos/test/test/pulls/0/reviews" {
-			fmt.Fprint(w, `[{"id": 0, "state": "APPROVED"}, {"id": 1, "state": "APPROVED"}]`)
+			fmt.Fprint(w, `[
+			{"id": 0, "state": "APPROVED", "user": {"id": 0}},
+			{"id": 1, "state": "APPROVED", "user": {"id": 1}}
+      ]`)
+		} else if r.URL.Path == "/repos/test/test/pulls/1/reviews" {
+			fmt.Fprint(w, `[
+			{"id": 0, "state": "APPROVED", "user": {"id": 0}},
+			{"id": 1, "state": "APPROVED", "user": {"id": 0}},
+			{"id": 2, "state": "CHANGES_REQUESTED", "user": {"id": 1}}
+      ]`)
 		}
 		fmt.Fprintln(w, "")
 	}))
@@ -37,7 +46,6 @@ func TestMain(m *testing.M) {
 }
 
 func TestCheckForError(t *testing.T) {
-
 	t.Run("No Error", func(t *testing.T) {
 		expected := events.APIGatewayProxyResponse{StatusCode: http.StatusOK}
 		resp := checkForError(nil)
@@ -66,14 +74,29 @@ func TestPostStatus(t *testing.T) {
 }
 
 func TestCheckApprovals(t *testing.T) {
-	pullRequest := &github.PullRequest{}
-	status, err := checkApprovals(pullRequest)
-	if err != nil {
-		t.Error(nil)
-	}
-	if status.State != "success" {
-		t.Error("Approvals check should be successful")
-	}
+	t.Run("Default", func(t *testing.T) {
+		pullRequestID := 0
+		pullRequest := &github.PullRequest{Number: &pullRequestID}
+		status, err := checkApprovals(pullRequest)
+		if err != nil {
+			t.Error(nil)
+		}
+		if status.State != "success" {
+			t.Error("Approvals check should be successful")
+		}
+	})
+
+	t.Run("Handle multiple reviews from one user", func(t *testing.T) {
+		pullRequestID := 1
+		pullRequest := &github.PullRequest{Number: &pullRequestID}
+		status, err := checkApprovals(pullRequest)
+		if err != nil {
+			t.Error(err)
+		}
+		if status.State != "failure" {
+			t.Error("Approvals check should fail")
+		}
+	})
 }
 
 func TestCheckTitle(t *testing.T) {
