@@ -110,12 +110,13 @@ public abstract class BlackduckBase extends AbstractMojo {
             return;
         }
 
-        Server server = serverOpt.get();
+        final Server tmpServer = serverOpt.get();
+        final Server server = ofNullable(settingsDecrypter.decrypt(new DefaultSettingsDecryptionRequest(tmpServer)).getServer())
+                .orElse(tmpServer);
         if ("skip".equals(server.getPassword())) {
             getLog().warn(String.format("server '%s' was configured to be skipped", serverId));
             return;
         }
-        server = ofNullable(settingsDecrypter.decrypt(new DefaultSettingsDecryptionRequest(server)).getServer()).orElse(server);
 
         doExecute(rootProject, server);
     }
