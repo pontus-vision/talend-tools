@@ -128,7 +128,7 @@ Name your branch according to the following conventions:
 
 ```username/type/short_description```
 
-so that the branch can easily be traced back to you.  The `type` should generally correspond to the [commit message type](#yype)
+so that the branch can easily be traced back to you.  The `type` should generally correspond to the [commit message type](#type)
 
 The first part of the branch name after ```username/``` should be the jira-id, followed by a hyphen and a short description. Use underscores to separate words in the short description.
 
