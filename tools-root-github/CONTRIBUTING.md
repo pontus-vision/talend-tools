@@ -120,11 +120,15 @@ feat(TPSVC-66): add Swagger to Bookkeeper
 
 ## Branch naming conventions
 
-Name your branch according to the following convention:
+Name your branch according to the following conventions:
 
-```username/JIRA-ID-short_description```
+```username/JIRA-ID-short_description``` or
 
-so that the branch can easily be traced back to you.
+```username/type/JIRA-ID-short_description``` or
+
+```username/type/short_description```
+
+so that the branch can easily be traced back to you.  The `type` should generally correspond to the [commit message type](#type)
 
 The first part of the branch name after ```username/``` should be the jira-id, followed by a hyphen and a short description. Use underscores to separate words in the short description.
 
