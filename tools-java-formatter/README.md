@@ -2,6 +2,7 @@
 * Install [Eclipse Code Formatter](https://plugins.jetbrains.com/plugin/6546) plugin
 * Import the java formatter file [src/main/resources/talend_java_eclipse_formatter.xml](src/main/resources/talend_java_eclipse_formatter.xml)
 * Setup the "import order" by choosing "From file" and select the file [src/main/resources/talend.importorder](src/main/resources/talend.importorder)
+![IntelliJ import order](IntelliJ-import-order.png)
 * Disable import on the fly (Settings... -> Editor -> General -> Auto Import, uncheck Optimize imports on the fly)
 * Disable `.*` imports (Settings... -> Editor -> Code Style -> Java -> Imports)
   - `Class count to use import with '*'` : 999
