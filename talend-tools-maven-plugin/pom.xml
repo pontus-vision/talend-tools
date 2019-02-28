@@ -18,7 +18,7 @@
 
   <groupId>org.talend.tools</groupId>
   <artifactId>talend-tools-maven-plugin</artifactId>
-  <version>1.0.4-SNAPSHOT</version>
+  <version>1.0.5-SNAPSHOT</version>
   <packaging>maven-plugin</packaging>
   <name>Talend Tools Maven Plugin</name>
   <url>https://talend.github.io/tools/talend-tools-maven-plugin</url>

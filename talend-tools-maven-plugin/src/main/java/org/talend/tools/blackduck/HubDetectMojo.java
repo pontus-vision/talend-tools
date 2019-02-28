@@ -71,10 +71,12 @@ import com.google.gson.GsonBuilder;
 @Mojo(name = "hub-detect", defaultPhase = VERIFY, threadSafe = true)
 public class HubDetectMojo extends BlackduckBase {
 
+    private static final String OLD_HUB_DETECT = "com.blackducksoftware.integration:hub-detect:5.2.0";
+
     /**
      * Where the hub-detect jar will be put for the execution.
      */
-    @Parameter(property = "hub-detect.hubDetectCache", defaultValue = "${project.build.directory}/blackduck/hub-detect.jar")
+    @Parameter(property = "hub-detect.hubDetectCache", defaultValue = "${project.build.directory}/blackduck/synopsys-detect.jar")
     private File hubDetectCache;
 
     /**
@@ -86,7 +88,7 @@ public class HubDetectMojo extends BlackduckBase {
     /**
      * In which (artifactory) repository the jar can be found.
      */
-    @Parameter(property = "hub-detect.artifactoryBase", defaultValue = "https://test-repo.blackducksoftware.com/artifactory")
+    @Parameter(property = "hub-detect.artifactoryBase", defaultValue = "https://repo.blackducksoftware.com/artifactory")
     private String artifactoryBase;
 
     /**
@@ -98,8 +100,9 @@ public class HubDetectMojo extends BlackduckBase {
 
     /**
      * The jar coordinates. You can use it to fix the version of hub-detect.
+     * Before it was com.blackducksoftware.integration:hub-detect:5.2.0
      */
-    @Parameter(property = "hub-detect.executableGav", defaultValue = "com.blackducksoftware.integration:hub-detect:latest")
+    @Parameter(property = "hub-detect.executableGav", defaultValue = "com.synopsys.integration:synopsys-detect:latest")
     private String executableGav;
 
     /**
@@ -164,6 +167,12 @@ public class HubDetectMojo extends BlackduckBase {
     private Map<String, String> environment;
 
     /**
+     * Let you replace the arguments passed to the cli.
+     */
+    @Parameter
+    private Collection<String> args;
+
+    /**
      * Let you exclude files with an absolute path resolution from relative path.
      * Avoid headache with hub-detect configuration.
      */
@@ -191,24 +200,32 @@ public class HubDetectMojo extends BlackduckBase {
         repositories.addAll(rootProject.getRemoteProjectRepositories());
 
         final String hubDetectVersion;
-        final File jar;
+        File jar = null;
         {
-            final String[] gav = executableGav.split(":");
+            String[] gav = executableGav.split(":");
             if (!hubDetectCache.exists()) {
                 hubDetectVersion = getHubDetectVersion(gav);
 
                 hubDetectCache.getParentFile().mkdirs();
 
-                try {
-                    final ArtifactResult artifactResult = resolver.resolveArtifact(session.getRepositorySession(),
-                            new ArtifactRequest(new DefaultArtifact(gav[0], gav[1], "jar", hubDetectVersion), repositories,
-                                    null));
-                    if (artifactResult.isMissing()) {
-                        throw new IllegalStateException(String.format("Didn't find '%s'", executableGav));
+                for (int i = 0; i < 2; i++) {
+                    if (i == 1) {
+                        getLog().info("Using old blackduck hub-detect gav cause " + executableGav + " was not found");
+                        gav = OLD_HUB_DETECT.split(":"); // old gav
                     }
-                    jar = artifactResult.getArtifact().getFile();
-                } catch (final ArtifactResolutionException e) {
-                    throw new IllegalStateException(String.format("Didn't find '%s'", executableGav), e);
+                    try {
+                        final ArtifactResult artifactResult = resolver.resolveArtifact(session.getRepositorySession(),
+                                new ArtifactRequest(new DefaultArtifact(gav[0], gav[1], "jar", hubDetectVersion), repositories,
+                                        null));
+                        if (artifactResult.isMissing() && i == 1) {
+                            throw new IllegalStateException(String.format("Didn't find '%s'", executableGav));
+                        }
+                        jar = artifactResult.getArtifact().getFile();
+                    } catch (final ArtifactResolutionException e) {
+                        if (i == 1) {
+                            throw new IllegalStateException(String.format("Didn't find '%s'", executableGav), e);
+                        }
+                    }
                 }
                 try {
                     FileUtils.copyFile(jar, hubDetectCache);
@@ -272,11 +289,12 @@ public class HubDetectMojo extends BlackduckBase {
             explodedScanCli = null;
         }
 
+        final boolean useArgs = shouldUseArgs(hubDetectVersion);
         final String rootPath = rootProject.getBasedir().getAbsolutePath();
         final File java = new File(System.getProperty("java.home"), "bin/java");
         final List<String> command = new ArrayList<>();
         command.add(java.getAbsolutePath());
-        if (systemVariables != null) {
+        if (systemVariables != null && !useArgs) {
             command.addAll(systemVariables.entrySet().stream()
                     .map(e -> String.format("-D%s=%s", e.getKey(), handlePlaceholders(rootPath, e.getValue())))
                     .collect(toList()));
@@ -288,6 +306,8 @@ public class HubDetectMojo extends BlackduckBase {
         }
         final Map<String, String> config = new HashMap<>();
         // https://blackducksoftware.atlassian.net/wiki/spaces/INTDOCS/pages/68878339/Hub+Detect+Properties
+        // https://github.com/blackducksoftware/synopsys-detect/blob/master/detect-configuration/src/
+        // main/java/com/synopsys/integration/detect/configuration/DetectProperty.java
         config.put("blackduck.hub.url", blackduckUrl);
         config.put("blackduck.hub.username", server.getUsername());
         config.put("blackduck.hub.password", server.getPassword());
@@ -309,16 +329,32 @@ public class HubDetectMojo extends BlackduckBase {
         } else {
             config.put("detect.hub.signature.scanner.exclusion.patterns", "/blackduck/");
         }
-        environment.put("SPRING_APPLICATION_JSON", new GsonBuilder().create().toJson(config));
+        if (systemVariables != null && useArgs) {
+            config.putAll(systemVariables);
+        }
+
+        if (!useArgs) {
+            environment.put("SPRING_APPLICATION_JSON", new GsonBuilder().create().toJson(config));
+        }
         command.add("-jar");
         command.add(hubDetectCache.getAbsolutePath());
+        if (args != null) {
+            command.addAll(args);
+        }
+        if (useArgs) {
+            command.addAll(config.entrySet().stream()
+                    .map(it -> "--"
+                            + it.getKey().replace("blackduck.hub.", "blackduck.").replace("detect.hub.", "detect.blackduck.")
+                            + "=" + it.getValue())
+                    .collect(toList()));
+        }
         getLog().info("Launching: " + processBuilder.command());
 
         final int exitStatus;
         try {
             exitStatus = processBuilder.start().waitFor();
         } catch (final InterruptedException e) {
-            Thread.interrupted();
+            Thread.currentThread().interrupt();
             getLog().error(e);
             throw new IllegalStateException(e);
         } catch (final IOException e) {
@@ -340,6 +376,14 @@ public class HubDetectMojo extends BlackduckBase {
         }
         if (exitStatus != expectedExitCode) {
             throw new IllegalStateException(String.format("Invalid exit status: %d", exitStatus));
+        }
+    }
+
+    private boolean shouldUseArgs(final String hubDetectVersion) {
+        try {
+            return Integer.parseInt(hubDetectVersion.split("\\.")[0]) > 4;
+        } catch (final NumberFormatException nfe) {
+            return true;
         }
     }
 
@@ -387,19 +431,19 @@ public class HubDetectMojo extends BlackduckBase {
     private String getHubDetectVersion(final String[] gav) {
         String hubDetectVersion;
         if (!"latest".equalsIgnoreCase(gav[2])) {
-            hubDetectVersion = gav[2];
-        } else {
-            try {
-                final URL versionUrl = new URL(
-                        String.format(latestVersionUrl, artifactoryBase, gav[0], gav[1], artifactRepositoryName));
-                try (final InputStream stream = versionUrl.openStream()) {
-                    hubDetectVersion = IOUtil.toString(stream);
-                }
-            } catch (final IOException e) {
-                throw new IllegalArgumentException(e); // unlikely
-            }
+            return gav[2];
         }
-        return hubDetectVersion;
+        try {
+            final URL versionUrl = new URL(
+                    String.format(latestVersionUrl, artifactoryBase, gav[0], gav[1], artifactRepositoryName));
+            try (final InputStream stream = versionUrl.openStream()) {
+                hubDetectVersion = IOUtil.toString(stream);
+            }
+
+            return hubDetectVersion;
+        } catch (final IOException e) {
+            return OLD_HUB_DETECT.split(":")[2];
+        }
     }
 
     private String handlePlaceholders(final String rootPath, final String value) {
