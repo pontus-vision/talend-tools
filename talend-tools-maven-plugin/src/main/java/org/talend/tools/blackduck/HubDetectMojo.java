@@ -221,6 +221,7 @@ public class HubDetectMojo extends BlackduckBase {
                             throw new IllegalStateException(String.format("Didn't find '%s'", executableGav));
                         }
                         jar = artifactResult.getArtifact().getFile();
+                        break;
                     } catch (final ArtifactResolutionException e) {
                         if (i == 1) {
                             throw new IllegalStateException(String.format("Didn't find '%s'", executableGav), e);
