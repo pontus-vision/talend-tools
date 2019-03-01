@@ -161,6 +161,12 @@ public class HubDetectMojo extends BlackduckBase {
     private Map<String, String> systemVariables;
 
     /**
+     * Let you customize the JVM.
+     */
+    @Parameter
+    private Collection<String> jvmOptions;
+
+    /**
      * Let you add environment variables on hub-detect execution.
      */
     @Parameter
@@ -295,6 +301,9 @@ public class HubDetectMojo extends BlackduckBase {
         final File java = new File(System.getProperty("java.home"), "bin/java");
         final List<String> command = new ArrayList<>();
         command.add(java.getAbsolutePath());
+        if (jvmOptions != null) {
+            command.addAll(jvmOptions);
+        }
         if (systemVariables != null && !useArgs) {
             command.addAll(systemVariables.entrySet().stream()
                     .map(e -> String.format("-D%s=%s", e.getKey(), handlePlaceholders(rootPath, e.getValue())))
